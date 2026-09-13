@@ -752,10 +752,6 @@
       </div>
 
             </div>
-            <span class="tag">إرسال التقييم</span>
-          </div>
-          <div class="alert">
-            لن تظهر نسب الجاهزية أو التصنيف النهائي للمستجيب. تظهر المؤشرات والتحليلات فقط لمالك الاستبيان ومن يتم منحه صلاحية الاطلاع على النتائج.
           </div>
         </div>
       </section>
@@ -2266,9 +2262,9 @@
           ['الجنس', draft['الجنس']],
           ['المرحلة', draft['المرحلة']],
           ['نوع المبنى', draft['نوع المبنى']],
-          ['اسم المدرسة', draft['اسم المدرسة']],
+          ['اسم المدرسة', schoolPrintLabelById(draft['اسم المدرسة'])],
           ['حالة المبنى', draft['حالة المبنى']],
-          ['المدارس المشتركة', Array.isArray(draft['المدارس المشتركة']) ? draft['المدارس المشتركة'].map(s => s.name || s.school || s).join('، ') : draft['المدارس المشتركة']],
+          ['المدارس المشتركة', Array.isArray(draft['المدارس المشتركة']) ? draft['المدارس المشتركة'].map(id => schoolPrintLabelById(id, true)).join('، ') : draft['المدارس المشتركة']],
           ['هل يوجد برنامج لذوي الإعاقة؟', draft['برنامج ذوي الإعاقة']],
           ['اسم مدير/ة المدرسة رباعيًا', draft['اسم مدير/ة المدرسة رباعيًا']],
           ['جوال المدير/ة', draft['جوال المدير/ة']],
@@ -2286,11 +2282,23 @@
       return (axis.fields || []).map(field => [field, saved[field] || '']);
     }
 
+
+    function schoolPrintLabelById(id, includeStage=false){
+      const school = getSchoolById(id);
+      if(!school) return String(id || '');
+      const name = school.name || school.school || '';
+      const code = school.code || '';
+      const stage = school.stage || '';
+      const codePart = code ? ' - ' + code : '';
+      const stagePart = includeStage && stage ? ' - ' + stage : '';
+      return `${name}${codePart}${stagePart}`;
+    }
+
     function buildPrintReport(){
       const basic = getBasicDraft();
       const final = getFinalNotesDraft();
       const todayHijri = basic['التاريخ الهجري'] || '';
-      const schoolName = basic['اسم المدرسة'] || '';
+      const schoolName = schoolPrintLabelById(basic['اسم المدرسة']) || '';
       const ministerialNo = basic['الرقم الوزاري'] || basic['رقم المدرسة'] || '';
       const sector = basic['القطاع'] || '';
       const gender = basic['الجنس'] || '';
