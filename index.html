@@ -279,6 +279,13 @@
 
 
 
+
+    .trial-reset-btn{
+      border-color:#c9b58c;
+      background:#fffaf0;
+      color:#70521f;
+    }
+
     .print-info-box{
       margin-top:18px;
       padding:18px;
@@ -627,6 +634,7 @@
             </p>
             <div class="actions">
               <button class="primary" onclick="go('scale')">بدء التقييم</button>
+              <button class="secondary trial-reset-btn" onclick="clearTrialData()">مسح بيانات التجربة وبدء تقييم جديد</button>
             </div>
           </div>
           <div class="hero-card">
@@ -1043,6 +1051,36 @@
       }
 ];
     let currentAxis = 0;
+
+
+    function clearTrialData(){
+      const ok = confirm('سيتم مسح بيانات التجربة المحفوظة في هذا المتصفح وبدء تقييم جديد. هل تريد المتابعة؟');
+      if(!ok) return;
+
+      const keysToRemove = [];
+      for(let i = 0; i < localStorage.length; i++){
+        const key = localStorage.key(i);
+        if(
+          key &&
+          (
+            key.startsWith('taif_safety_') ||
+            key.startsWith('taif_safety_platform_')
+          )
+        ){
+          keysToRemove.push(key);
+        }
+      }
+
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+
+      try{
+        sessionStorage.clear();
+      }catch(e){}
+
+      alert('تم مسح بيانات التجربة. ستبدأ المنصة من جديد.');
+      window.location.href = window.location.pathname + '?trialReset=' + Date.now();
+    }
+
 
     function go(id){
       document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
