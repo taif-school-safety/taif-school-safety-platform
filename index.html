@@ -2353,7 +2353,7 @@
 
     function isAppsScriptWebAppUrlConfigured(){
       const url = String(APPS_SCRIPT_WEB_APP_URL || '').trim();
-      return url && url !== 'https://script.google.com/macros/s/AKfycbxJoEBVHD9alGaDuetmd1a0EYCsttTjUYGJrHFtXpaCUMRhBM_fi_pnelhNDM5tPgE8/exec' && /^https:\/\/script\.google\.com\/macros\/s\//.test(url);
+      return /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url);
     }
 
     function getSchoolPayloadById(id){
