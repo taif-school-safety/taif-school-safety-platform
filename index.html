@@ -1114,6 +1114,10 @@
     let currentAxis = 0;
 
 
+    const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxJoEBVHD9alGaDuetmd1a0EYCsttTjUYGJrHFtXpaCUMRhBM_fi_pnelhNDM5tPgE8/exec';
+
+
+
 
     function isMoeEmail(value){
       return /^[^\s@]+@moe\.gov\.sa$/i.test(String(value || '').trim());
@@ -2347,7 +2351,99 @@
     }
 
 
-    function submitSurvey(){
+    function isAppsScriptWebAppUrlConfigured(){
+      const url = String(APPS_SCRIPT_WEB_APP_URL || '').trim();
+      return url && url !== 'https://script.google.com/macros/s/AKfycbxJoEBVHD9alGaDuetmd1a0EYCsttTjUYGJrHFtXpaCUMRhBM_fi_pnelhNDM5tPgE8/exec' && /^https:\/\/script\.google\.com\/macros\/s\//.test(url);
+    }
+
+    function getSchoolPayloadById(id){
+      const school = getSchoolById(id);
+      if(!school) return { id: String(id || ''), code: '', name: String(id || ''), school: String(id || ''), sector: '', gender: '', stage: '' };
+      return {
+        id: String(school.id || ''),
+        code: String(school.code || ''),
+        name: String(school.name || school.school || ''),
+        school: String(school.school || school.name || ''),
+        sector: String(school.sector || ''),
+        gender: String(school.gender || ''),
+        stage: String(school.stage || '')
+      };
+    }
+
+    function getStoredAxisObject(axisIndex){
+      return readJsonStorage(`taif_safety_axis_clean_v1_${axisIndex}`, {});
+    }
+
+    function buildSubmissionItemResponses(){
+      const responses = [];
+      axes.forEach((axis, axisIndex) => {
+        if(axis.type === 'basic') return;
+        const saved = getStoredAxisObject(axisIndex);
+        (axis.fields || []).forEach((field, fieldIndex) => {
+          responses.push({
+            axisIndex: axisIndex + 1,
+            axisTitle: axis.title,
+            itemNumber: fieldIndex + 1,
+            itemText: field,
+            response: saved[field] || ''
+          });
+        });
+      });
+      return responses;
+    }
+
+    function buildSurveySubmissionPayload(){
+      const basic = getBasicDraft();
+      const finalNotes = getFinalNotesDraft();
+      const mainSchoolId = String(basic['اسم المدرسة'] || '').trim();
+      const sharedIds = Array.isArray(basic['المدارس المشتركة']) ? basic['المدارس المشتركة'].map(id => String(id || '').trim()).filter(Boolean) : [];
+
+      return {
+        meta: {
+          source: 'GitHub Pages',
+          appVersion: appStorageVersion,
+          submittedAtClient: new Date().toISOString(),
+          gateEmail: sessionStorage.getItem('taif_safety_moe_email_authorized') || ''
+        },
+        basic: basic,
+        finalNotes: finalNotes,
+        schools: {
+          mainSchoolId: mainSchoolId,
+          sharedSchoolIds: sharedIds,
+          mainSchool: getSchoolPayloadById(mainSchoolId),
+          sharedSchools: sharedIds.map(getSchoolPayloadById)
+        },
+        itemResponses: buildSubmissionItemResponses()
+      };
+    }
+
+    function setSubmitButtonLoading(isLoading){
+      const btn = document.getElementById('finalSubmitBtn');
+      if(!btn) return;
+      btn.disabled = !!isLoading;
+      btn.classList.toggle('submit-disabled', !!isLoading);
+      btn.textContent = isLoading ? 'جاري إرسال التقييم...' : 'إرسال التقييم';
+    }
+
+    async function sendSurveyPayloadToAppsScript(payload){
+      const response = await fetch(APPS_SCRIPT_WEB_APP_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify(payload),
+        redirect: 'follow'
+      });
+
+      const text = await response.text();
+      try{
+        return JSON.parse(text);
+      }catch(e){
+        throw new Error('وصل رد غير مفهوم من خدمة الحفظ.');
+      }
+    }
+
+    async function submitSurvey(){
       saveFinalNotes();
       const missing = getMissingItems();
       if(missing.length > 0){
@@ -2356,14 +2452,34 @@
         return;
       }
 
-      const duplicate = findDuplicateBuildingSubmission();
-      if(duplicate){
-        showDuplicateSubmissionMessage(duplicate);
+      if(!isAppsScriptWebAppUrlConfigured()){
+        showMissingItems(['لم يتم ربط الاستمارة برابط Apps Script Web App حتى الآن.']);
+        alert('لم يتم ربط الاستمارة بخدمة الحفظ حتى الآن.');
         return;
       }
 
-      registerBuildingSubmission();
-      go('summary');
+      const payload = buildSurveySubmissionPayload();
+      setSubmitButtonLoading(true);
+
+      try{
+        const result = await sendSurveyPayloadToAppsScript(payload);
+        if(!result || !result.success){
+          const message = result && result.message ? result.message : 'تعذر حفظ التقييم.';
+          showMissingItems([message]);
+          alert(message);
+          return;
+        }
+
+        sessionStorage.setItem('taif_safety_last_response_id', result.responseId || '');
+        go('summary');
+      }catch(err){
+        const message = 'تعذر الاتصال بخدمة الحفظ. تأكد من رابط Apps Script Web App ثم حاول مرة أخرى.';
+        showMissingItems([message, err && err.message ? err.message : '']);
+        alert(message);
+      }finally{
+        setSubmitButtonLoading(false);
+        updateFinalSubmitState();
+      }
     }
 
 
